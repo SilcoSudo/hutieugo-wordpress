@@ -32,23 +32,16 @@ jobs:
           docker exec hutieugo-wordpress-wordpress-1 bash -c "redis-cli -h redis -a redis_password ping"
 
       - name: Deploy to production
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          # Đăng nhập Docker Hub (nếu dùng registry riêng)
-          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
-
-          # Build và push image WordPress
-          docker build -t <your-username>/wordpress-hutieugo:latest .
-          docker push <your-username>/wordpress-hutieugo:latest
-
-          # Deploy trên server (giả sử server là 'intern2')
-          ssh -i ~/.ssh/id_rsa user@intern2 "
-            cd ~/hutieugo-wordpress &&
-            docker pull <your-username>/wordpress-hutieugo:latest &&
-            docker-compose down -v &&
-            docker-compose up --build -d
-          "
-
+  if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  run: |
+    echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/id_rsa
+    chmod 600 /tmp/id_rsa
+    ssh -i /tmp/id_rsa -o StrictHostKeyChecking=no root@intern2 "
+      cd ~/hutieugo-wordpress &&
+      docker pull quytruong2912/wordpress-hutieugo:latest &&
+      docker-compose down -v &&
+      docker-compose up --build -d
+    "
 env:
   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
   DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
