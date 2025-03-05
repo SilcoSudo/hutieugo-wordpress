@@ -1,0 +1,59 @@
+name: CI/CD Pipeline for WordPress
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker images
+        run: |
+          docker-compose build
+
+      - name: Run tests (optional)
+        run: |
+          # Thêm các lệnh test nếu có (ví dụ: kiểm tra WordPress, kết nối DB/Redis)
+          docker-compose up -d
+          sleep 10  # Chờ container khởi động
+          docker exec hutieugo-wordpress-wordpress-1 bash -c "mysql -u Qi -p040104 -h db -D wordpress -e 'SHOW TABLES;'"
+          docker exec hutieugo-wordpress-wordpress-1 bash -c "redis-cli -h redis -a redis_password ping"
+
+      - name: Deploy to production
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # Đăng nhập Docker Hub (nếu dùng registry riêng)
+          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+
+          # Build và push image WordPress
+          docker build -t <your-username>/wordpress-hutieugo:latest .
+          docker push <your-username>/wordpress-hutieugo:latest
+
+          # Deploy trên server (giả sử server là 'intern2')
+          ssh -i ~/.ssh/id_rsa user@intern2 "
+            cd ~/hutieugo-wordpress &&
+            docker pull <your-username>/wordpress-hutieugo:latest &&
+            docker-compose down -v &&
+            docker-compose up --build -d
+          "
+
+env:
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+  DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+# Cần thêm secrets trên GitHub
+# - DOCKER_HUB_USERNAME: Tên đăng nhập Docker Hub
+# - DOCKER_HUB_TOKEN: Token truy cập Docker Hub
+# - SSH key cho server 'intern2'
